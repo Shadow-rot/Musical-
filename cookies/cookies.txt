@@ -1,0 +1,28 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.youtube.com        TRUE        /        TRUE        1776690984        VISITOR_INFO1_LIVE        BsfufTCEtIk
+.youtube.com        TRUE        /        TRUE        1776690984        VISITOR_PRIVACY_METADATA        CgJJThIEGgAgQA%3D%3D
+.youtube.com        TRUE        /        TRUE        1795698984        PREF        f6=40000000&tz=Asia.Kolkata
+.youtube.com        TRUE        /        TRUE        1792597476        __Secure-1PSIDTS        sidts-CjUBmkD5S_Eoz_xOVBl9BThR_UL5F1tAlxdrhar171aAjWBL4GwsWRYYaqrmdc5aNHECUz48zxAA
+.youtube.com        TRUE        /        TRUE        1792597476        __Secure-3PSIDTS        sidts-CjUBmkD5S_Eoz_xOVBl9BThR_UL5F1tAlxdrhar171aAjWBL4GwsWRYYaqrmdc5aNHECUz48zxAA
+.youtube.com        TRUE        /        FALSE        1795621483        HSID        A8ypr7KmWPXhXQ1fl
+.youtube.com        TRUE        /        TRUE        1795621483        SSID        A9RENWgb6_4gEXJRM
+.youtube.com        TRUE        /        FALSE        1795621483        APISID        1SOy0FHLKNnShxXX/AcGllgJ3Twb-2QEg3
+.youtube.com        TRUE        /        TRUE        1795621483        SAPISID        H2aMS8fHl55_9oOI/A7JdWv9LUSpA4r8yG
+.youtube.com        TRUE        /        TRUE        1795621483        __Secure-1PAPISID        H2aMS8fHl55_9oOI/A7JdWv9LUSpA4r8yG
+.youtube.com        TRUE        /        TRUE        1795621483        __Secure-3PAPISID        H2aMS8fHl55_9oOI/A7JdWv9LUSpA4r8yG
+.youtube.com        TRUE        /        FALSE        1795621483        SID        g.a0002gh_CG_b7oEAi9pgxCodVE4a0XJBooCdIW1xSt-4MZvccCf9X-yiAnDA8m6dLD4k8sTPMAACgYKAWUSARcSFQHGX2MiMWeRyISGZQ6TwEoAzOU0YBoVAUF8yKp7HZkvRgRty0R9BXujmz2K0076
+.youtube.com        TRUE        /        TRUE        1795621483        __Secure-1PSID        g.a0002gh_CG_b7oEAi9pgxCodVE4a0XJBooCdIW1xSt-4MZvccCf9fL207PX6u88HVlamcm-bmAACgYKAXcSARcSFQHGX2Mi-WyNdzJdWm-c-tqfckDFXhoVAUF8yKosM9sYaep0wIXtUrfJqE2Q0076
+.youtube.com        TRUE        /        TRUE        1795621483        __Secure-3PSID        g.a0002gh_CG_b7oEAi9pgxCodVE4a0XJBooCdIW1xSt-4MZvccCf9PS1HUq6jE6Umt3JIdnAYagACgYKARUSARcSFQHGX2MiC5Z7BSSb1ZOnAsVKWdob9hoVAUF8yKq00oH8isjecyRDvzu0ItfA0076
+.youtube.com        TRUE        /        FALSE        1792674987        SIDCC        AKEyXzX9tqO5PmkUhsz_kpU8Rv6Q1COEd70Tt8v17FkftRFhzUlJtDmxam6ThV3H9OEGM_2A
+.youtube.com        TRUE        /        TRUE        1792674987        __Secure-1PSIDCC        AKEyXzWPy1vqaOhgrnPW6aIO7l5v03gmazchL9UA5KOnHU9pS7k0zNOFG9PohIpW7II2-TxYVw
+.youtube.com        TRUE        /        TRUE        1792674987        __Secure-3PSIDCC        AKEyXzVltwW8IW73jPKTmQEltzIFp7FHzVg5E6BWj11icOYNVkA1u0tPldhV86UEkq6kBo9P
+.youtube.com        TRUE        /        TRUE        1795683182        LOGIN_INFO        AFmmF2swRQIge_Ewy3DO2QdLS1KVl8F3bTZWg1BGl5q2ay0LraattlsCIQDNcgwZo1RjaTnkrm8kKF2zJDZyhfVrtkT4ESb7PPXC-g:QUQ3MjNmenQzMGxTdFc5Zm1WS2pGLUwzVnFVNENTU2NSWVd3OGFoQVA5U1JmOGo4NGk3TEZoMUxEaFBBMGtoVVVKaVhLTW9lZGRwZ0o2TmVoVlp6ZGRuWnBOb0VxYUx3eEFzRmtVTFNMMF8ydzl1Z2NDQnJXVkZXek00dHlFUVNPMmZZUzN6QlRhT2lQb1Bfel9YV2JlZUdic29tcmd2ai1B
+.youtube.com        TRUE        /        FALSE        1761052673        ST-esmjxd        csn=Jc6uqTTJUrv4nEXD&itct=CIwBEIf2BBgDIhMIrubrn7C1kAMVKexMAh1jYigzWg9GRXdoYXRfdG9fd2F0Y2iaAQUIJBCOHsoBBFjSGrM%3D
+.youtube.com        TRUE        /        TRUE        1761061600        YTSESSION-jnufdw        ANPz9Kh5n1CPIphgl+zVTjZGdjcDxGTv5R21kbcxMPpZIDxBpee1OiOb8YH6DT8s9uRNcHUZv1zfZu9fIESzUbFVn2Knc9hnGLfapBw=
+.youtube.com        TRUE        /        TRUE        1761063280        GPS        1
+.youtube.com        TRUE        /        FALSE        1761136196        ST-14raua0        csn=D6kRA0uzcW0tS9cK&itct=CI8BEIf2BBgBIhMI4dvgxee3kAMV4VJ4AB0mpxY1Wg9GRXdoYXRfdG9fd2F0Y2iaAQUIJBCOHsoBBFjSGrM%3D
+.youtube.com        TRUE        /        FALSE        1761136196        ST-1n6727w        csn=D6kRA0uzcW0tS9cK&itct=CJMBEIf2BBgAIhMI4dvgxee3kAMV4VJ4AB0mpxY1Wg9GRXdoYXRfdG9fd2F0Y2iaAQUIJBCOHsoBBFjSGrM%3D
+.youtube.com        TRUE        /        TRUE        0        YSC        MhyLEtVSXXM
