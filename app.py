@@ -10,280 +10,151 @@ import random
 
 app = FastAPI(title="YouTube Download API")
 
-# ---------------- CONFIG ---------------- #
-
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
-
 COOKIES_DIR = Path("cookies")
 COOKIES_DIR.mkdir(exist_ok=True)
 
 VALID_API_KEY = os.getenv("API_KEY", "shadwo")
+BASE_URL = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
 
-# Track download status
 download_status: Dict[str, dict] = {}
 
 def validate_api_key(api_key: str):
     if api_key != VALID_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-# ---------------- COOKIE HELPER ---------------- #
-
-def get_random_cookie():
-    """Get a random cookie file from the cookies directory"""
+def get_cookie_file():
     cookie_files = list(COOKIES_DIR.glob("*.txt"))
-    if not cookie_files:
-        print("⚠️ No cookie files found in cookies/ directory")
-        return None
-    
-    cookie_file = random.choice(cookie_files)
-    print(f"🍪 Using cookie file: {cookie_file.name}")
-    return str(cookie_file)
+    return str(random.choice(cookie_files)) if cookie_files else None
 
-# ---------------- HELPERS ---------------- #
-
-async def download_youtube_audio(video_id: str, url: str):
-    """Background task to download audio"""
-    output = DOWNLOAD_DIR / f"{video_id}.%(ext)s"
-    
-    cookie_file = get_random_cookie()
-    
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": str(output),
-        "quiet": False,  # Changed to see errors
-        "no_warnings": False,
-        "extract_flat": False,
-        "ignoreerrors": False,
+def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
+    opts = {
+        "format": format_str,
+        "outtmpl": str(DOWNLOAD_DIR / f"{video_id}.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "retries": 10,
+        "fragment_retries": 10,
+        "concurrent_fragment_downloads": 5,
     }
-    
-    # Add cookies if available
     if cookie_file:
-        ydl_opts["cookiefile"] = cookie_file
+        opts["cookiefile"] = cookie_file
+    return opts
+
+async def download_media(video_id: str, url: str, format_str: str, media_type: str):
+    cookie_file = get_cookie_file()
+    ydl_opts = get_ydl_opts(video_id, format_str, cookie_file)
     
     try:
-        download_status[video_id] = {"status": "downloading", "type": "audio"}
-        print(f"🎵 Starting audio download for {video_id}")
-        
-        await asyncio.to_thread(
-            yt_dlp.YoutubeDL(ydl_opts).download, [url]
-        )
+        download_status[video_id] = {"status": "downloading", "type": media_type}
+        await asyncio.to_thread(yt_dlp.YoutubeDL(ydl_opts).download, [url])
         
         files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
         if not files:
-            error_msg = "Download completed but file not found"
-            print(f"❌ {error_msg}")
-            download_status[video_id] = {"status": "error", "error": error_msg}
-            return
+            raise Exception("File not found after download")
         
         file = files[0]
-        print(f"✅ Audio download complete: {file.name}")
         download_status[video_id] = {
             "status": "done",
             "filename": file.name,
             "format": file.suffix[1:],
-            "type": "audio"
+            "type": media_type
         }
-        
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Audio download error for {video_id}: {error_msg}")
-        download_status[video_id] = {"status": "error", "error": error_msg}
+        download_status[video_id] = {"status": "error", "error": str(e)}
 
-async def download_youtube_video(video_id: str, url: str):
-    """Background task to download video"""
-    output = DOWNLOAD_DIR / f"{video_id}.%(ext)s"
-    
-    cookie_file = get_random_cookie()
-    
-    ydl_opts = {
-        "format": "best[height<=720][width<=1280]/best",
-        "outtmpl": str(output),
-        "quiet": False,
-        "no_warnings": False,
-        "extract_flat": False,
-        "ignoreerrors": False,
-    }
-    
-    # Add cookies if available
-    if cookie_file:
-        ydl_opts["cookiefile"] = cookie_file
-    
-    try:
-        download_status[video_id] = {"status": "downloading", "type": "video"}
-        print(f"🎥 Starting video download for {video_id}")
-        
-        await asyncio.to_thread(
-            yt_dlp.YoutubeDL(ydl_opts).download, [url]
-        )
-        
-        files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
-        if not files:
-            error_msg = "Download completed but file not found"
-            print(f"❌ {error_msg}")
-            download_status[video_id] = {"status": "error", "error": error_msg}
-            return
-        
-        file = files[0]
-        print(f"✅ Video download complete: {file.name}")
-        download_status[video_id] = {
+def get_response(video_id: str, status_info: dict):
+    if status_info["status"] == "done":
+        return {
             "status": "done",
-            "filename": file.name,
-            "format": file.suffix[1:],
-            "type": "video"
+            "video_id": video_id,
+            "format": status_info["format"],
+            "link": f"{BASE_URL}/download/{status_info['filename']}",
+            "download": f"/download/{status_info['filename']}"
         }
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Video download error for {video_id}: {error_msg}")
-        download_status[video_id] = {"status": "error", "error": error_msg}
-
-# ---------------- ROOT ---------------- #
+    return {**status_info, "video_id": video_id}
 
 @app.get("/")
 async def root():
-    cookie_files = list(COOKIES_DIR.glob("*.txt"))
+    cookie_count = len(list(COOKIES_DIR.glob("*.txt")))
     return {
-        "name": "My YouTube Download API",
+        "name": "YouTube Download API",
         "status": "running",
-        "version": "2.1",
-        "cookies_loaded": len(cookie_files),
+        "version": "3.0",
+        "cookies_loaded": cookie_count,
         "endpoints": {
             "song": "/song/{video_id}?api=YOUR_KEY",
             "video": "/video/{video_id}?api=YOUR_KEY",
             "status": "/status/{video_id}",
             "download": "/download/{filename}"
-        },
-        "info": "API now uses async downloads with cookie support. Check /status/{video_id} or poll the same endpoint until status=done"
+        }
     }
-
-# ---------------- SONG ---------------- #
 
 @app.get("/song/{video_id}")
 async def download_song(video_id: str, api: str, background_tasks: BackgroundTasks):
     validate_api_key(api)
     
-    # Check if file already exists
     files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
     if files:
         file = files[0]
-        base_url = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
         return {
             "status": "done",
             "video_id": video_id,
             "format": file.suffix[1:],
-            "link": f"{base_url}/download/{file.name}",
+            "link": f"{BASE_URL}/download/{file.name}",
             "download": f"/download/{file.name}"
         }
     
-    # Check if already downloading
     if video_id in download_status:
-        status_info = download_status[video_id]
-        if status_info["status"] == "done":
-            base_url = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
-            return {
-                "status": "done",
-                "video_id": video_id,
-                "format": status_info["format"],
-                "link": f"{base_url}/download/{status_info['filename']}",
-                "download": f"/download/{status_info['filename']}"
-            }
-        elif status_info["status"] == "downloading":
-            return {
-                "status": "downloading",
-                "video_id": video_id,
-                "message": "Download in progress, please check again"
-            }
-        elif status_info["status"] == "error":
-            # Clear error status and retry
-            del download_status[video_id]
+        return get_response(video_id, download_status[video_id])
     
-    # Start download in background
     url = f"https://www.youtube.com/watch?v={video_id}"
-    background_tasks.add_task(download_youtube_audio, video_id, url)
+    background_tasks.add_task(download_media, video_id, url, "bestaudio/best", "audio")
     
-    return {
-        "status": "downloading",
-        "video_id": video_id,
-        "message": "Download started, check status or poll this endpoint"
-    }
-
-# ---------------- VIDEO ---------------- #
+    return {"status": "downloading", "video_id": video_id}
 
 @app.get("/video/{video_id}")
 async def download_video(video_id: str, api: str, background_tasks: BackgroundTasks):
     validate_api_key(api)
     
-    # Check if file already exists
     files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
     if files:
         file = files[0]
-        base_url = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
         return {
             "status": "done",
             "video_id": video_id,
             "format": file.suffix[1:],
-            "link": f"{base_url}/download/{file.name}",
+            "link": f"{BASE_URL}/download/{file.name}",
             "download": f"/download/{file.name}"
         }
     
-    # Check if already downloading
     if video_id in download_status:
-        status_info = download_status[video_id]
-        if status_info["status"] == "done":
-            base_url = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
-            return {
-                "status": "done",
-                "video_id": video_id,
-                "format": status_info["format"],
-                "link": f"{base_url}/download/{status_info['filename']}",
-                "download": f"/download/{status_info['filename']}"
-            }
-        elif status_info["status"] == "downloading":
-            return {
-                "status": "downloading",
-                "video_id": video_id,
-                "message": "Download in progress, please check again"
-            }
-        elif status_info["status"] == "error":
-            # Clear error status and retry
-            del download_status[video_id]
+        return get_response(video_id, download_status[video_id])
     
-    # Start download in background
     url = f"https://www.youtube.com/watch?v={video_id}"
-    background_tasks.add_task(download_youtube_video, video_id, url)
+    background_tasks.add_task(download_media, video_id, url, "best[height<=720][width<=1280]/best", "video")
     
-    return {
-        "status": "downloading",
-        "video_id": video_id,
-        "message": "Download started, check status or poll this endpoint"
-    }
-
-# ---------------- STATUS ---------------- #
+    return {"status": "downloading", "video_id": video_id}
 
 @app.get("/status/{video_id}")
 async def check_status(video_id: str):
-    # Check if file exists on disk
     files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
     
     if files:
         file = files[0]
-        base_url = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
         return {
             "status": "done",
             "video_id": video_id,
             "format": file.suffix[1:],
             "filename": file.name,
-            "link": f"{base_url}/download/{file.name}"
+            "link": f"{BASE_URL}/download/{file.name}"
         }
     
-    # Check in-memory status
     if video_id in download_status:
         return {**download_status[video_id], "video_id": video_id}
     
     return {"status": "not_found", "video_id": video_id}
-
-# ---------------- DOWNLOAD ---------------- #
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
@@ -298,18 +169,11 @@ async def download_file(filename: str):
         media_type="application/octet-stream"
     )
 
-# ---------------- CLEANUP ---------------- #
-
 @app.on_event("startup")
 async def startup_event():
-    """Clean up old downloads on startup"""
-    cookie_files = list(COOKIES_DIR.glob("*.txt"))
-    print(f"✅ API Started - Download directory: {DOWNLOAD_DIR.absolute()}")
-    print(f"✅ Cookies directory: {COOKIES_DIR.absolute()}")
-    print(f"✅ Found {len(cookie_files)} cookie file(s)")
-    print(f"✅ API Key: {VALID_API_KEY}")
-
-# ---------------- START ---------------- #
+    cookie_count = len(list(COOKIES_DIR.glob("*.txt")))
+    print(f"API Started | Downloads: {DOWNLOAD_DIR.absolute()}")
+    print(f"Cookies: {cookie_count} file(s) | API Key: {VALID_API_KEY}")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
