@@ -7,6 +7,7 @@ import asyncio
 import uvicorn
 from typing import Dict
 import random
+import time
 
 app = FastAPI(title="YouTube Download API")
 
@@ -19,19 +20,61 @@ VALID_API_KEY = os.getenv("API_KEY", "shadwo")
 BASE_URL = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
 
 download_status: Dict[str, dict] = {}
+cookie_test_cache = {"last_test": 0, "working_cookies": []}
 
 def validate_api_key(api_key: str):
     if api_key != VALID_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 def get_cookie_file():
+    """Get a working cookie file with caching"""
+    global cookie_test_cache
+    
+    # Refresh cache every 5 minutes
+    if time.time() - cookie_test_cache["last_test"] > 300:
+        cookie_test_cache["working_cookies"] = []
+        cookie_test_cache["last_test"] = time.time()
+    
+    # If we have working cookies cached, use them
+    if cookie_test_cache["working_cookies"]:
+        cookie = random.choice(cookie_test_cache["working_cookies"])
+        print(f"🍪 Using cached working cookie: {cookie.name}")
+        return str(cookie)
+    
+    # Otherwise test all cookies
     cookie_files = list(COOKIES_DIR.glob("*.txt"))
     if not cookie_files:
         print("⚠️ No cookies found!")
         return None
-    cookie = random.choice(cookie_files)
-    print(f"🍪 Using: {cookie.name}")
-    return str(cookie)
+    
+    # Try to find a working cookie
+    for cookie_file in cookie_files:
+        try:
+            # Quick test with yt-dlp
+            test_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "cookiefile": str(cookie_file),
+                "skip_download": True,
+                "extract_flat": True,
+            }
+            with yt_dlp.YoutubeDL(test_opts) as ydl:
+                # Test with a simple video
+                ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
+            
+            cookie_test_cache["working_cookies"].append(cookie_file)
+            print(f"✅ Working cookie: {cookie_file.name}")
+        except Exception as e:
+            print(f"❌ Cookie failed: {cookie_file.name} - {str(e)[:50]}")
+            continue
+    
+    if cookie_test_cache["working_cookies"]:
+        cookie = cookie_test_cache["working_cookies"][0]
+        print(f"🍪 Using: {cookie.name}")
+        return str(cookie)
+    
+    print("⚠️ No working cookies found!")
+    return None
 
 def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
     opts = {
@@ -39,11 +82,13 @@ def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
         "outtmpl": str(DOWNLOAD_DIR / f"{video_id}.%(ext)s"),
         "quiet": False,
         "no_warnings": False,
-        "retries": 10,
-        "fragment_retries": 10,
-        "concurrent_fragment_downloads": 5,
+        "retries": 5,
+        "fragment_retries": 5,
+        "concurrent_fragment_downloads": 3,
         "nocheckcertificate": True,
         "geo_bypass": True,
+        "extractor_retries": 3,
+        "socket_timeout": 30,
     }
     if cookie_file:
         opts["cookiefile"] = cookie_file
@@ -54,9 +99,9 @@ async def download_media(video_id: str, url: str, format_str: str, media_type: s
 
     if not cookie_file:
         download_status[video_id] = {
-            "status": "error", 
-            "error": "No cookies available",
-            "message": "No cookies available"
+            "status": "error",
+            "error": "No working cookies available. Please refresh your YouTube cookies.",
+            "message": "No working cookies available. Please refresh your YouTube cookies."
         }
         return
 
@@ -66,6 +111,7 @@ async def download_media(video_id: str, url: str, format_str: str, media_type: s
         download_status[video_id] = {"status": "downloading", "type": media_type}
         print(f"📥 Downloading {video_id} ({media_type})")
 
+        # Try download
         await asyncio.to_thread(yt_dlp.YoutubeDL(ydl_opts).download, [url])
 
         files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
@@ -84,8 +130,16 @@ async def download_media(video_id: str, url: str, format_str: str, media_type: s
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Error downloading {video_id}: {error_msg}")
+        
+        # Check if it's a cookie/signature issue
+        if any(x in error_msg.lower() for x in ["signature", "invalid argument", "400", "only images"]):
+            error_msg = "Cookie expired or invalid. Please refresh your YouTube cookies. Visit: chrome://settings/cookies or use cookie extension."
+            # Clear cookie cache to force retest
+            global cookie_test_cache
+            cookie_test_cache["working_cookies"] = []
+        
         download_status[video_id] = {
-            "status": "error", 
+            "status": "error",
             "error": error_msg,
             "message": error_msg
         }
@@ -115,22 +169,29 @@ def get_response(video_id: str, status_info: dict):
 @app.get("/")
 async def root():
     cookies = list(COOKIES_DIR.glob("*.txt"))
+    working = len(cookie_test_cache.get("working_cookies", []))
     return {
         "name": "YouTube API",
-        "version": "3.2",
+        "version": "3.3",
         "status": "online",
-        "cookies": len(cookies),
-        "files": [c.name for c in cookies],
+        "cookies": {
+            "total": len(cookies),
+            "working": working if working > 0 else "untested",
+            "files": [c.name for c in cookies]
+        },
         "endpoints": {
             "test": "/test-cookies",
             "song": "/song/{id}?api=KEY",
             "video": "/video/{id}?api=KEY",
-            "status": "/status/{id}"
-        }
+            "status": "/status/{id}",
+            "clear": "DELETE /clear/{id}?api=KEY"
+        },
+        "note": "If downloads fail with 'signature' or '400' errors, refresh your cookies!"
     }
 
 @app.get("/test-cookies")
 async def test_cookies():
+    """Test all cookies and return results"""
     cookies = list(COOKIES_DIR.glob("*.txt"))
 
     if not cookies:
@@ -141,15 +202,41 @@ async def test_cookies():
 
     for cookie in cookies:
         try:
-            opts = {"quiet": True, "cookiefile": str(cookie), "skip_download": True}
+            opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "cookiefile": str(cookie),
+                "skip_download": True
+            }
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
-            results[cookie.name] = {"status": "✅", "title": info.get("title")}
+            results[cookie.name] = {
+                "status": "✅ Working",
+                "title": info.get("title", "Unknown")[:50]
+            }
         except Exception as e:
-            results[cookie.name] = {"status": "❌", "error": str(e)[:80]}
+            error = str(e)
+            if "signature" in error.lower() or "400" in error:
+                status = "❌ Expired/Invalid"
+            else:
+                status = "❌ Failed"
+            results[cookie.name] = {
+                "status": status,
+                "error": error[:80]
+            }
 
-    working = sum(1 for r in results.values() if r["status"] == "✅")
-    return {"total": len(cookies), "working": working, "results": results}
+    working = sum(1 for r in results.values() if "✅" in r["status"])
+    
+    # Clear cache to force retest next time
+    global cookie_test_cache
+    cookie_test_cache["working_cookies"] = []
+    
+    return {
+        "total": len(cookies),
+        "working": working,
+        "results": results,
+        "note": "If all cookies show expired/invalid, please refresh them from your browser"
+    }
 
 @app.get("/song/{video_id}")
 async def download_song(video_id: str, api: str, background_tasks: BackgroundTasks):
@@ -175,7 +262,13 @@ async def download_song(video_id: str, api: str, background_tasks: BackgroundTas
 
     # Start new download
     url = f"https://www.youtube.com/watch?v={video_id}"
-    background_tasks.add_task(download_media, video_id, url, "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best", "audio")
+    background_tasks.add_task(
+        download_media,
+        video_id,
+        url,
+        "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+        "audio"
+    )
     print(f"🔄 Started background download for: {video_id}")
     return {"status": "downloading", "video_id": video_id, "message": "Download started"}
 
@@ -203,16 +296,21 @@ async def download_video(video_id: str, api: str, background_tasks: BackgroundTa
 
     # Start new download
     url = f"https://www.youtube.com/watch?v={video_id}"
-    background_tasks.add_task(download_media, video_id, url, "best[height<=720][ext=mp4]/best[height<=720]/best", "video")
+    background_tasks.add_task(
+        download_media,
+        video_id,
+        url,
+        "best[height<=720][ext=mp4]/best[height<=720]/best",
+        "video"
+    )
     print(f"🔄 Started background download for: {video_id}")
     return {"status": "downloading", "video_id": video_id, "message": "Download started"}
 
 @app.get("/status/{video_id}")
 async def check_status(video_id: str):
-    """Check download status - can be called without API key for polling"""
+    """Check download status"""
     print(f"📊 Status check for: {video_id}")
     
-    # Check if file exists
     files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
     if files:
         print(f"✅ File found: {files[0].name}")
@@ -223,7 +321,6 @@ async def check_status(video_id: str):
             "link": f"{BASE_URL}/download/{files[0].name}"
         }
     
-    # Check download status
     if video_id in download_status:
         status_info = download_status[video_id]
         print(f"📊 Status: {status_info['status']}")
@@ -241,7 +338,7 @@ async def download_file(filename: str):
     
     print(f"📤 Serving file: {filename}")
     return FileResponse(
-        path=file_path, 
+        path=file_path,
         filename=filename,
         media_type="application/octet-stream"
     )
@@ -251,16 +348,32 @@ async def clear_cache(video_id: str, api: str):
     """Clear cached download status and file"""
     validate_api_key(api)
     
-    # Remove from status dict
     if video_id in download_status:
         del download_status[video_id]
     
-    # Remove file
     files = list(DOWNLOAD_DIR.glob(f"{video_id}.*"))
     for file in files:
         file.unlink()
     
     return {"status": "cleared", "video_id": video_id}
+
+@app.get("/refresh-cookies")
+async def refresh_cookies(api: str):
+    """Force refresh cookie cache"""
+    validate_api_key(api)
+    
+    global cookie_test_cache
+    cookie_test_cache["working_cookies"] = []
+    cookie_test_cache["last_test"] = 0
+    
+    # Test cookies immediately
+    get_cookie_file()
+    
+    return {
+        "status": "refreshed",
+        "working_cookies": len(cookie_test_cache["working_cookies"]),
+        "message": "Cookie cache refreshed"
+    }
 
 @app.on_event("startup")
 async def startup():
@@ -271,6 +384,8 @@ async def startup():
     print(f"📁 Files: {[c.name for c in cookies]}")
     print(f"🔑 Key: {VALID_API_KEY}")
     print(f"🌐 Base URL: {BASE_URL}")
+    print("="*50)
+    print("⚠️ If downloads fail, check /test-cookies endpoint")
     print("="*50)
 
 if __name__ == "__main__":
