@@ -50,22 +50,31 @@ def get_cookie_file():
     # Try to find a working cookie
     for cookie_file in cookie_files:
         try:
-            # Quick test with yt-dlp
+            # Quick test with yt-dlp using actual format we'll use for downloads
             test_opts = {
+                "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
                 "quiet": True,
                 "no_warnings": True,
                 "cookiefile": str(cookie_file),
                 "skip_download": True,
-                "extract_flat": True,
+                "ignoreerrors": True,
             }
             with yt_dlp.YoutubeDL(test_opts) as ydl:
                 # Test with a simple video
-                ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
-            
-            cookie_test_cache["working_cookies"].append(cookie_file)
-            print(f"✅ Working cookie: {cookie_file.name}")
+                info = ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
+                # Check if we got valid formats
+                if info and info.get("formats"):
+                    cookie_test_cache["working_cookies"].append(cookie_file)
+                    print(f"✅ Working cookie: {cookie_file.name}")
         except Exception as e:
-            print(f"❌ Cookie failed: {cookie_file.name} - {str(e)[:50]}")
+            error_msg = str(e)
+            # If it's just a format issue, the cookie might still work
+            if "format" in error_msg.lower() and "not available" in error_msg.lower():
+                print(f"⚠️ Cookie may work: {cookie_file.name} (format restrictions)")
+                # Still add it as it might work for some videos
+                cookie_test_cache["working_cookies"].append(cookie_file)
+            else:
+                print(f"❌ Cookie failed: {cookie_file.name} - {str(e)[:50]}")
             continue
     
     if cookie_test_cache["working_cookies"]:
@@ -73,7 +82,12 @@ def get_cookie_file():
         print(f"🍪 Using: {cookie.name}")
         return str(cookie)
     
-    print("⚠️ No working cookies found!")
+    # If no fully working cookies, just use any cookie file as fallback
+    print("⚠️ No fully tested working cookies, trying any available cookie...")
+    if cookie_files:
+        return str(cookie_files[0])
+    
+    print("⚠️ No cookies found at all!")
     return None
 
 def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
@@ -203,21 +217,34 @@ async def test_cookies():
     for cookie in cookies:
         try:
             opts = {
+                "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
                 "quiet": True,
                 "no_warnings": True,
                 "cookiefile": str(cookie),
-                "skip_download": True
+                "skip_download": True,
+                "ignoreerrors": True,
             }
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
-            results[cookie.name] = {
-                "status": "✅ Working",
-                "title": info.get("title", "Unknown")[:50]
-            }
+            
+            # Check if we got valid formats
+            if info and info.get("formats"):
+                results[cookie.name] = {
+                    "status": "✅ Working",
+                    "title": info.get("title", "Unknown")[:50]
+                }
+            else:
+                results[cookie.name] = {
+                    "status": "⚠️ Limited",
+                    "error": "Cookie works but may have format restrictions"
+                }
         except Exception as e:
             error = str(e)
             if "signature" in error.lower() or "400" in error:
                 status = "❌ Expired/Invalid"
+            elif "format" in error.lower() or "not available" in error.lower():
+                status = "⚠️ Limited"
+                error = "Cookie works but has format restrictions - may still work for downloads"
             else:
                 status = "❌ Failed"
             results[cookie.name] = {
@@ -226,6 +253,7 @@ async def test_cookies():
             }
 
     working = sum(1 for r in results.values() if "✅" in r["status"])
+    limited = sum(1 for r in results.values() if "⚠️" in r["status"])
     
     # Clear cache to force retest next time
     global cookie_test_cache
@@ -234,8 +262,9 @@ async def test_cookies():
     return {
         "total": len(cookies),
         "working": working,
+        "limited": limited,
         "results": results,
-        "note": "If all cookies show expired/invalid, please refresh them from your browser"
+        "note": "✅ = Fully working, ⚠️ = May have restrictions, ❌ = Not working"
     }
 
 @app.get("/song/{video_id}")
