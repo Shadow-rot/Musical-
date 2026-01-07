@@ -94,6 +94,8 @@ def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
     opts = {
         "format": format_str,
         "outtmpl": str(DOWNLOAD_DIR / f"{video_id}.%(ext)s"),
+        "merge_output_format": "mp4",
+        "prefer_ffmpeg": True,
         "quiet": False,
         "no_warnings": False,
         "retries": 5,
@@ -107,6 +109,7 @@ def get_ydl_opts(video_id: str, format_str: str, cookie_file: str = None):
     if cookie_file:
         opts["cookiefile"] = cookie_file
     return opts
+
 
 async def download_media(video_id: str, url: str, format_str: str, media_type: str):
     cookie_file = get_cookie_file()
@@ -325,13 +328,13 @@ async def download_video(video_id: str, api: str, background_tasks: BackgroundTa
 
     # Start new download
     url = f"https://www.youtube.com/watch?v={video_id}"
-    background_tasks.add_task(
-        download_media,
-        video_id,
-        url,
-        "best[height<=720][ext=mp4]/best[height<=720]/best",
-        "video"
-    )
+   background_tasks.add_task(
+    download_media,
+    video_id,
+    url,
+    "bv*+ba/best",
+    "video"
+)
     print(f"🔄 Started background download for: {video_id}")
     return {"status": "downloading", "video_id": video_id, "message": "Download started"}
 
