@@ -293,14 +293,16 @@ async def download_song(video_id: str, api: str, background_tasks: BackgroundTas
         return get_response(video_id, download_status[video_id])
 
     # Start new download
-    url = f"https://www.youtube.com/watch?v={video_id}"
+        url = f"https://www.youtube.com/watch?v={video_id}"
+
     background_tasks.add_task(
         download_media,
         video_id,
         url,
-        "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
-        "audio"
+        "bv*+ba/best",
+        "video"
     )
+
     print(f"🔄 Started background download for: {video_id}")
     return {"status": "downloading", "video_id": video_id, "message": "Download started"}
 
