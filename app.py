@@ -292,7 +292,6 @@ async def download_song(video_id: str, api: str, background_tasks: BackgroundTas
         print(f"📊 Returning cached status: {download_status[video_id]['status']}")
         return get_response(video_id, download_status[video_id])
 
-    # Start new download
         url = f"https://www.youtube.com/watch?v={video_id}"
 
     background_tasks.add_task(
