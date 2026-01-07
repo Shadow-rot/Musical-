@@ -36,8 +36,8 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 COOKIES_DIR = Path("cookies")
 COOKIES_DIR.mkdir(exist_ok=True)
 
-VALID_API_KEY = os.getenv("API_KEY", "your_secure_key_here")
-BASE_URL = os.getenv("BASE_URL", "https://api.yourdomain.com")
+VALID_API_KEY = os.getenv("API_KEY", "shadwo")
+BASE_URL = os.getenv("BASE_URL", "https://youtube-api-0qwc.onrender.com")
 MAX_FILE_AGE = int(os.getenv("MAX_FILE_AGE", "3600"))
 MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", "3"))
 
