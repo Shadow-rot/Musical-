@@ -327,15 +327,16 @@ async def download_video(video_id: str, api: str, background_tasks: BackgroundTa
         print(f"📊 Returning cached status: {download_status[video_id]['status']}")
         return get_response(video_id, download_status[video_id])
 
-    # Start new download
-    url = f"https://www.youtube.com/watch?v={video_id}"
-   background_tasks.add_task(
-    download_media,
-    video_id,
-    url,
-    "bv*+ba/best",
-    "video"
-)
+       url = f"https://www.youtube.com/watch?v={video_id}"
+
+    background_tasks.add_task(
+        download_media,
+        video_id,
+        url,
+        "bv*+ba/best",
+        "video"
+    )
+
     print(f"🔄 Started background download for: {video_id}")
     return {"status": "downloading", "video_id": video_id, "message": "Download started"}
 
